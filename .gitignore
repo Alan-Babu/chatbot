@@ -1,0 +1,15 @@
+#python ignore files
+data/
+*.pyc
+run.sh
+__pycache__/
+#node ignore files
+node_modules/
+package-lock.json
+# Ignore environment files
+.env
+# Ignore log files
+*.log
+# Ignore build directories
+build/
+
