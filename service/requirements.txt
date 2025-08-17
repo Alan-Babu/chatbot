@@ -5,3 +5,6 @@ faiss-cpu>=1.8.0
 numpy>=1.26.0
 pydantic>=2.7.0
 python-dotenv>=1.0.1
+ollama>=0.5.3
+PyPDF2>=3.0.1
+openpyxl>=3.1.5

@@ -8,20 +8,15 @@ from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from docx import Document
 import openpyxl
-import logging as log
 
-# OpenAI client
-from openai import OpenAI
+import ollama
+
 
 # -------------------------
 # Config
 # -------------------------
 load_dotenv()  # Set to False if you don't want to load .env
 app = FastAPI()
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not set. Please set it in your .env file.")
-client = OpenAI(api_key=api_key)  # <- set your API key in env
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 index = None
@@ -144,16 +139,15 @@ Context:
 Question: {request.query}
 Answer:"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",   # ✅ You can use "gpt-4o" too if available in your plan
+    response = ollama.chat(
+        model="phi3",   # ✅ You can use "gpt-4o" too if available in your plan
         messages=[
             {"role": "system", "content": "You are a knowledgeable assistant."},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=300
     )
 
-    answer = response.choices[0].message.content
+    answer = response["message"]["content"]
 
     return {
         "query": request.query,
