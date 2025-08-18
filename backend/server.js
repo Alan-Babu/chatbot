@@ -24,8 +24,10 @@ app.post('/api/chat', async (req, res) => {
         const response = await axios.post(`${base_url}/chat`, {
             query,
             k: topK
-        });
-        res.json(response.data);
+        },
+        {responseType: 'stream'}); // Use stream to handle large responses
+        res.setHeader('Content-Type', 'text/plain');
+        response.data.pipe(res); // Pipe the response data directly to the client
     }catch (error) {
         console.error('Error in /chat:', error);
         res.status(500).json({ error: 'Internal Server Error' });

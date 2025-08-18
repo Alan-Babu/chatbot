@@ -46,7 +46,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       const userMessage = this.newMessage;
       this.newMessage = '';
 
-      // Add user message
+      // Push user message
       this.messages.push({
         id: this.messages.length + 1,
         text: userMessage,
@@ -56,24 +56,28 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
       this.isTyping = true;
 
-      // Send to backend
-      this.chatbotService.sendMessage(userMessage).subscribe({
-        next: (response) => {
-          setTimeout(() => {
-            this.isTyping = false;
-            this.addBotMessage(response.answer);
-          }, 500);
-        },
-        error: (error) => {
-          console.error('Error sending message:', error);
-          this.isTyping = false;
-          this.addBotMessage(
-            'I apologize, but I encountered an error. Please try again or contact support.'
-          );
+      // Create bot message placeholder
+      let botMessage = { 
+        id: this.messages.length + 1, 
+        text: '', 
+        sender: 'bot', 
+        timestamp: new Date() 
+      };
+      this.messages.push(botMessage);
+
+      // Stream response from backend
+      await this.chatbotService.sendMessage(userMessage, (chunk: string) => {
+        if (chunk.trim()) {
+          botMessage.text += chunk;
+          // 🔥 Force UI refresh (Angular doesn’t detect += mutations well)
+          this.messages = [...this.messages];
         }
       });
+
+      this.isTyping = false;
     }
   }
+
 
   addBotMessage(text: string) {
     this.messages.push({

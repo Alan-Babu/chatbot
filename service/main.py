@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
 import faiss, os
 from dotenv import load_dotenv
+from typing import Generator
 
 # File readers
 from PyPDF2 import PdfReader
@@ -138,13 +140,33 @@ Context:
 
 Question: {request.query}
 Answer:"""
+    def generate() -> Generator[str, None, None]:
+        try:
+            for chunk in ollama.chat(
+                model="phi3",
+                messages=[
+                    {"role": "system", "content": "You are a knowledgeable assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True
+            ):
+                if "message" in chunk and "content" in chunk["message"]:
+                    yield chunk["message"]["content"]
+        except Exception as e:
+            yield f"Error generating response: {str(e)}"
 
+    return StreamingResponse(generate(), media_type="text/plain")
+
+
+
+'''
     response = ollama.chat(
-        model="phi3",   # ✅ You can use "gpt-4o" too if available in your plan
+        model="phi3",   
         messages=[
             {"role": "system", "content": "You are a knowledgeable assistant."},
             {"role": "user", "content": prompt}
         ],
+        stream = True,
     )
 
     answer = response["message"]["content"]
@@ -154,3 +176,4 @@ Answer:"""
         "context": [f"{src}: {chunk[:200]}..." for chunk, src in retrieved_chunks],
         "answer": answer
     }
+'''
