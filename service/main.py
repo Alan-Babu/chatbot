@@ -145,7 +145,7 @@ def chat(request: ChatRequest):
     context = "\n".join([f"From {src}:\n{chunk}" for chunk, src in retrieved_chunks])
 
     prompt = f"""You are a helpful assistant.
-Use the following context to answer the question.
+Use the following context to answer the question. do not tell any information about the datasets or documents used to answer the question.
 
 Context:
 {context}

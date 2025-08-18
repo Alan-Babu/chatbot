@@ -1,0 +1,44 @@
+{
+  "messages": [
+    {
+      "messageId": 3,
+      "feedback": "up",
+      "timestamp": "2025-08-18T11:16:17.137Z"
+    },
+    {
+      "messageId": 3,
+      "feedback": "up",
+      "timestamp": "2025-08-18T11:25:45.042Z"
+    }
+  ],
+  "sessions": [
+    {
+      "rating": 3,
+      "timestamp": "2025-08-18T11:16:26.426Z"
+    },
+    {
+      "rating": 3,
+      "timestamp": "2025-08-18T11:16:34.039Z"
+    },
+    {
+      "rating": 4,
+      "timestamp": "2025-08-18T11:16:43.664Z"
+    },
+    {
+      "rating": 4,
+      "timestamp": "2025-08-18T11:16:46.828Z"
+    },
+    {
+      "rating": 5,
+      "timestamp": "2025-08-18T11:17:03.805Z"
+    },
+    {
+      "rating": 5,
+      "timestamp": "2025-08-18T11:22:13.746Z"
+    },
+    {
+      "rating": 5,
+      "timestamp": "2025-08-18T11:25:50.883Z"
+    }
+  ]
+}

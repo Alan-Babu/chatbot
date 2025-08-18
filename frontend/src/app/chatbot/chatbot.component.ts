@@ -26,6 +26,10 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
   newMessage = '';
   isTyping = false;
+  chatEnded = false;
+  selectedRating = 0;
+  feedbackSubmitted = false;
+  showRatingPopup = false;
 
   constructor(private chatbotService: ChatbotServiceService) {}
 
@@ -50,7 +54,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
   }
 
   async sendMessage() {
-    if (this.newMessage.trim()) {
+    if (this.newMessage.trim() && !this.chatEnded) {
       const userMessage = this.newMessage;
       this.newMessage = '';
 
@@ -64,12 +68,13 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
       this.isTyping = true;
 
-      // Create bot message placeholder
+      // Create bot message placeholder with isComplete: false
       let botMessage = { 
         id: this.messages.length + 1, 
         text: '', 
         sender: 'bot', 
-        timestamp: new Date() 
+        timestamp: new Date(),
+        isComplete: false
       };
       this.messages.push(botMessage);
 
@@ -81,6 +86,10 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
           this.messages = [...this.messages];
         }
       });
+
+      // Mark message as complete after streaming
+      botMessage.isComplete = true;
+      this.messages = [...this.messages];
 
       this.isTyping = false;
     }
@@ -107,7 +116,49 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       : 'bg-gray-100 text-gray-900';
   }
 
+  giveFeedback(message: any, feedback: 'up' | 'down') {
+    this.chatbotService.sendMessageFeedback(message.id, feedback).subscribe({
+      next: () => console.log(`Feedback saved for message ${message.id}`),
+      error: (err) => console.error("Feedback error:", err)
+    });
+  }
+
+  // End chat → star rating
+  endChat() {
+    this.showRatingPopup = true;
+  }
+
+  submitRating(rating: number) {
+    this.selectedRating = rating;
+    this.chatbotService.sendSessionFeedback(this.selectedRating).subscribe({
+      next: () => {
+        this.showRatingPopup = false;
+        this.addBotMessage("🙏 Thank you for your feedback!");
+        this.chatEnded = true; // Disable input and buttons
+      },
+      error: (err) => console.error("Session feedback error:", err)
+    });
+  }
+  
+
   getMessageAlignment(message: any): string {
     return message.sender === 'user' ? 'justify-end' : 'justify-start';
+  }
+
+  resetChat() {
+    this.messages = [
+      {
+        id: 1,
+        text: 'Hello! I\'m your AI assistant. How can I help you today?',
+        sender: 'bot',
+        timestamp: new Date(),
+        isComplete: true
+      }
+    ];
+    this.newMessage = '';
+    this.selectedRating = 0;
+    this.feedbackSubmitted = false;
+    this.showRatingPopup = false;
+    this.chatEnded = false;
   }
 }
