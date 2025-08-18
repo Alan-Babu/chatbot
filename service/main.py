@@ -116,7 +116,7 @@ def load_data():
 
 
 # -------------------------
-# Chat Endpoint (RAG with GPT-4o)
+# Chat Endpoint (RAG with ollalma)
 # -------------------------
 @app.post("/chat")
 def chat(request: ChatRequest):

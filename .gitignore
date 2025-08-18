@@ -6,6 +6,8 @@ __pycache__/
 #node ignore files
 node_modules/
 package-lock.json
+.angular/
+.vscode/
 # Ignore environment files
 .env
 # Ignore log files

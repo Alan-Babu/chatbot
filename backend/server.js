@@ -2,22 +2,28 @@ const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
 
+const cors = require('cors');   
+
+const corsOptions = {
+    origin: 'http://localhost:4200', // Adjust this to your frontend URL
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+}
 const app = express();
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 const base_url = 'http://localhost:8000';
 
 app.post('/api/chat', async (req, res) => {
     try{
-        console.log('Received request on /api/chat:', req.body);
-        console.log('####################');
-        if (!req.body.query || !req.body.k) {
-            return res.status(400).json({ error: 'Missing query or k parameter' });
+        if (!req.body.query) {
+            return res.status(400).json({ error: 'Missing query parameter' });
         }
         const {query,k} = req.body;
+        const topK = k ?? 3;
         const response = await axios.post(`${base_url}/chat`, {
             query,
-            k
+            k: topK
         });
         res.json(response.data);
     }catch (error) {
