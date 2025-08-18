@@ -44,6 +44,16 @@ app.post('/api/ingest', async (req, res) => {
     }
 });
 
+app.get('/api/menu', async (req, res) => {
+    try{
+        const response = await axios.get(`${base_url}/menu`);
+        res.json(response.data);
+    }catch (error) {
+        console.error('Error in /api/menu:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 app.listen(3000, () => {
     console.log('Server is running on http://localhost:3000');
 });

@@ -22,13 +22,21 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       timestamp: new Date()
     }
   ];
+  menuItems: string[] = [];
 
   newMessage = '';
   isTyping = false;
 
   constructor(private chatbotService: ChatbotServiceService) {}
 
-  ngOnInit() {}
+  ngOnInit() {
+      this.chatbotService.getMenuOptions().subscribe({
+        next: (items) => this.menuItems = items,
+        error: (err) => console.error("Menu fetch error:", err)
+      });
+      console.log("Chatbot component initialized");
+      console.log("Menu items:", this.menuItems);
+  }
 
   ngAfterViewChecked() {
     this.scrollToBottom();
@@ -76,6 +84,11 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
       this.isTyping = false;
     }
+  }
+
+  onMenuClick(item: string) {
+    this.newMessage = item;
+    this.sendMessage();
   }
 
 

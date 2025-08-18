@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
-import faiss, os
+import faiss, os, re, logging
 from dotenv import load_dotenv
 from typing import Generator
 
@@ -10,20 +10,26 @@ from typing import Generator
 from PyPDF2 import PdfReader
 from docx import Document
 import openpyxl
+from sklearn.preprocessing import normalize
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 import ollama
-
 
 # -------------------------
 # Config
 # -------------------------
-load_dotenv()  # Set to False if you don't want to load .env
+load_dotenv()
 app = FastAPI()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-index = None
-docs = []
-doc_sources = []
+# Use app.state instead of globals
+app.state.index = None
+app.state.docs = []
+app.state.doc_sources = []
 
 class ChatRequest(BaseModel):
     query: str
@@ -37,11 +43,13 @@ def load_txt(file_path):
     with open(file_path, "r", encoding="utf-8") as f: 
         return f.read()
 
-def load_md(file_path): return load_txt(file_path)
+def load_md(file_path): 
+    return load_txt(file_path)
 
 def load_pdf(file_path):
     reader = PdfReader(file_path)
-    return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    texts = [page.extract_text() for page in reader.pages if page.extract_text()]
+    return "\n".join(texts)
 
 def load_docx(file_path):
     doc = Document(file_path)
@@ -61,6 +69,7 @@ def load_xlsx(file_path):
 # Chunking
 # -------------------------
 def chunk_text(text, chunk_size=500, overlap=50):
+    """Split text into chunks with overlap."""
     chunks = []
     start = 0
     while start < len(text):
@@ -75,11 +84,10 @@ def chunk_text(text, chunk_size=500, overlap=50):
 # -------------------------
 @app.on_event("startup")
 def load_data():
-    global index, docs, doc_sources
+    file_dir = os.getenv("DATA_DIR", "data/")
 
-    file_dir = "data/"
     if not os.path.exists(file_dir):
-        print("⚠️ Data folder not found.")
+        logger.warning("⚠️ Data folder not found.")
         return
 
     for file in os.listdir(file_dir):
@@ -93,42 +101,46 @@ def load_data():
             elif ext == ".docx": text = load_docx(file_path)
             elif ext == ".xlsx": text = load_xlsx(file_path)
             else:
-                print(f"Skipping unsupported file: {file}")
+                logger.info(f"Skipping unsupported file: {file}")
                 continue
 
             chunks = chunk_text(text)
-            docs.extend(chunks)
-            doc_sources.extend([file] * len(chunks))
-            print(f"✅ Loaded {file} with {len(chunks)} chunks")
+            app.state.docs.extend(chunks)
+            app.state.doc_sources.extend([file] * len(chunks))
+            logger.info(f"✅ Loaded {file} with {len(chunks)} chunks")
 
         except Exception as e:
-            print(f"❌ Failed to load {file}: {e}")
+            logger.error(f"❌ Failed to load {file}: {e}")
 
-    if not docs:
-        print("⚠️ No documents loaded.")
+    if not app.state.docs:
+        logger.warning("⚠️ No documents loaded.")
         return
 
-    # Build FAISS index
-    embeddings = embedder.encode(docs)
+    # Build FAISS index (cosine similarity)
+    embeddings = embedder.encode(app.state.docs)
+    embeddings = normalize(embeddings)  # normalize for cosine similarity
     dim = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dim)
-    index.add(embeddings)
+    app.state.index = faiss.IndexFlatIP(dim)
+    app.state.index.add(embeddings)
 
-    print(f"📚 Index built with {len(docs)} chunks from {len(set(doc_sources))} files")
+    logger.info(
+        f"📚 Index built with {len(app.state.docs)} chunks from {len(set(app.state.doc_sources))} files"
+    )
 
 
 # -------------------------
-# Chat Endpoint (RAG with ollalma)
+# Chat Endpoint (RAG with ollama)
 # -------------------------
 @app.post("/chat")
 def chat(request: ChatRequest):
-    global index, docs, doc_sources
-    if index is None:
+    if app.state.index is None:
         raise HTTPException(status_code=500, detail="Index not initialized")
 
     q_emb = embedder.encode([request.query])
-    D, I = index.search(q_emb, request.k)
-    retrieved_chunks = [(docs[i], doc_sources[i]) for i in I[0]]
+    q_emb = normalize(q_emb)  # normalize query too
+
+    D, I = app.state.index.search(q_emb, request.k)
+    retrieved_chunks = [(app.state.docs[i], app.state.doc_sources[i]) for i in I[0]]
 
     context = "\n".join([f"From {src}:\n{chunk}" for chunk, src in retrieved_chunks])
 
@@ -140,6 +152,7 @@ Context:
 
 Question: {request.query}
 Answer:"""
+
     def generate() -> Generator[str, None, None]:
         try:
             for chunk in ollama.chat(
@@ -150,7 +163,7 @@ Answer:"""
                 ],
                 stream=True
             ):
-                if "message" in chunk and "content" in chunk["message"]:
+                if chunk.get("message") and "content" in chunk["message"]:
                     yield chunk["message"]["content"]
         except Exception as e:
             yield f"Error generating response: {str(e)}"
@@ -158,22 +171,38 @@ Answer:"""
     return StreamingResponse(generate(), media_type="text/plain")
 
 
+# -------------------------
+# Menu Endpoint
+# -------------------------
+@app.get("/menu", response_model=list[str])
+def get_menu():
+    if not app.state.doc_sources:
+        raise HTTPException(status_code=404, detail="No documents loaded")
 
-'''
-    response = ollama.chat(
-        model="phi3",   
-        messages=[
-            {"role": "system", "content": "You are a knowledgeable assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        stream = True,
-    )
+    menu_items = []
+    for doc in app.state.docs:
+        headings = re.findall(r"^(#+\s.*)", doc, flags=re.MULTILINE)
+        if headings:
+            menu_items.extend([h.strip("# ").strip() for h in headings])
 
-    answer = response["message"]["content"]
+    if not menu_items:
+        vectorizer = TfidfVectorizer(stop_words="english", max_features=10)
+        X = vectorizer.fit_transform(app.state.docs)
+        keywords = vectorizer.get_feature_names_out()
+        menu_items.extend(keywords.tolist())
 
+    # Deduplicate and return top 15
+    unique_items = list(dict.fromkeys(menu_items))[:15]
+    return unique_items
+
+
+# -------------------------
+# Healthcheck Endpoint
+# -------------------------
+@app.get("/health")
+def health():
     return {
-        "query": request.query,
-        "context": [f"{src}: {chunk[:200]}..." for chunk, src in retrieved_chunks],
-        "answer": answer
+        "status": "ok",
+        "docs_loaded": len(app.state.docs),
+        "files_loaded": len(set(app.state.doc_sources)),
     }
-'''
