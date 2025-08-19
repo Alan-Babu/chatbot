@@ -32,6 +32,10 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
   selectedRating = 0;
   feedbackSubmitted = false;
   showRatingPopup = false;
+  sessionId = "";
+
+  searchQuery = '';
+  searchResults: any[] = [];
 
   constructor(private chatbotService: ChatbotServiceService) {}
 
@@ -40,8 +44,24 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
         next: (items) => this.menuItems = items,
         error: (err) => console.error("Menu fetch error:", err)
       });
-      console.log("Chatbot component initialized");
-      console.log("Menu items:", this.menuItems);
+
+      this.sessionId = this.chatbotService.getSessionId();
+
+      this.chatbotService.getHistory(this.sessionId).subscribe({
+      next: (history) => {
+        if (history.length) {
+          this.messages = history.map((m, idx) => ({
+            id: idx + 1,
+            text: m.content,
+            sender: m.role === 'user' ? 'user' : 'bot',
+            timestamp: new Date(m.timestamp),
+            isComplete: true
+          }));
+        }
+      },
+      error: (err) => console.error("History fetch error:", err)
+    });
+
   }
 
   ngAfterViewChecked() {
@@ -82,6 +102,14 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
       // Stream response from backend
       await this.chatbotService.sendMessage(userMessage, (chunk: string) => {
+        if(chunk.startsWith('[[Message ID:')) {
+          const match = chunk.match(/Message ID: (\d+)/);
+          if (match) {
+            botMessage.id = parseInt(match[1], 10);
+          }
+          return;
+
+        }
         if (chunk.trim()) {
           botMessage.text += chunk;
           // 🔥 Force UI refresh (Angular doesn’t detect += mutations well)
@@ -107,6 +135,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       }
     }
   }
+  
 
   onMenuClick(item: string) {
     this.newMessage = item;
@@ -181,6 +210,17 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     this.feedbackSubmitted = false;
     this.showRatingPopup = false;
     this.chatEnded = false;
+  }
+
+  onSearch() {
+    if (!this.searchQuery.trim()) return;
+    this.chatbotService.search(this.searchQuery).subscribe({
+      next: (results) => this.searchResults = results,
+      error: (err) => {
+        console.error("Search error:", err);
+        this.searchResults = [];
+      }
+    });
   }
 }
 

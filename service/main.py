@@ -6,6 +6,8 @@ import faiss, os, re, logging, hashlib
 from dotenv import load_dotenv
 from typing import Generator, Optional
 
+
+
 # File readers
 from PyPDF2 import PdfReader
 from docx import Document
@@ -21,6 +23,11 @@ from rapidfuzz import process as fuzz_process
 # Config
 # -------------------------
 load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+print("DATABASE_URL =", os.getenv("DATABASE_URL"))
+
+from db.db import init_db, SessionLocal, CacheEntry, ChatMessage, MessageFeedback, SessionFeedback
+  # Assuming db.py has the init_db function
 app = FastAPI()
 
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +46,7 @@ app.state.doc_sources = []
 class ChatRequest(BaseModel):
     query: str
     k: int = 3
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
 
 # -------------------------
@@ -140,8 +147,8 @@ def load_data():
     build_index_from_dir(file_dir)
     # Initialize DB
     try:
-        from .db import init_db
         init_db()
+        logger.info("✅ Database initialized successfully")
     except Exception as e:
         logger.warning(f"DB init failed: {e}")
 
@@ -158,7 +165,6 @@ def chat(request: ChatRequest):
     cache_key = hashlib.sha256(f"{request.query.strip().lower()}::{request.k}".encode()).hexdigest()
     cached_response = None
     try:
-        from .db import SessionLocal, CacheEntry, ChatMessage
         db = SessionLocal()
         try:
             cached_entry = db.query(CacheEntry).filter(CacheEntry.query_key == cache_key).first()
@@ -216,7 +222,6 @@ Answer:"""
             full.append(piece)
             yield piece
         try:
-            from .db import SessionLocal, CacheEntry, ChatMessage
             db = SessionLocal()
             try:
                 text = "".join(full)
@@ -227,10 +232,19 @@ Answer:"""
                 else:
                     entry.response = text
                     entry.created_at = datetime.utcnow()
+
+                assistant_id = None    
                 if request.session_id:
                     db.add(ChatMessage(session_id=request.session_id, role='user', content=request.query))
-                    db.add(ChatMessage(session_id=request.session_id, role='assistant', content=text))
+                    assistant = ChatMessage(session_id=request.session_id, role='assistant', content=text)
+                    db.add(assistant)
+                    db.commit()
+                    db.refresh(assistant)
+                    assistant_id = assistant.id
                 db.commit()
+
+                if assistant_id:
+                    yield f"\n\n[Message ID: {assistant_id}]\n"
             finally:
                 db.close()
         except Exception:
@@ -270,7 +284,6 @@ def get_menu():
 @app.post("/feedback/message")
 def feedback_message(payload: dict):
     try:
-        from .db import SessionLocal, MessageFeedback
         db = SessionLocal()
         try:
             message_id = payload.get("messageId")
@@ -291,7 +304,6 @@ def feedback_message(payload: dict):
 @app.post("/feedback/session")
 def feedback_session(payload: dict):
     try:
-        from .db import SessionLocal, SessionFeedback
         db = SessionLocal()
         try:
             rating = payload.get("rating")
@@ -311,7 +323,6 @@ def feedback_session(payload: dict):
 @app.get("/history/{session_id}")
 def history(session_id: str):
     try:
-        from .db import SessionLocal, ChatMessage
         db = SessionLocal()
         try:
             rows = (
@@ -321,7 +332,11 @@ def history(session_id: str):
                 .all()
             )
             return [
-                {"role": r.role, "content": r.content, "timestamp": r.created_at.isoformat()}
+                {
+                 "role": r.role,
+                 "content": r.content, 
+                 "timestamp": r.created_at.isoformat() if r.created_at else None
+                }
                 for r in rows
             ]
         finally:

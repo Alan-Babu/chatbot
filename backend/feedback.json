@@ -14,6 +14,16 @@
       "messageId": 3,
       "feedback": "up",
       "timestamp": "2025-08-18T14:49:13.942Z"
+    },
+    {
+      "messageId": 7,
+      "feedback": "down",
+      "timestamp": "2025-08-19T12:45:41.501Z"
+    },
+    {
+      "messageId": 13,
+      "feedback": "up",
+      "timestamp": "2025-08-19T12:51:51.519Z"
     }
   ],
   "sessions": [
@@ -48,6 +58,22 @@
     {
       "rating": 5,
       "timestamp": "2025-08-18T14:49:21.571Z"
+    },
+    {
+      "rating": 5,
+      "timestamp": "2025-08-19T09:44:16.352Z"
+    },
+    {
+      "rating": 3,
+      "timestamp": "2025-08-19T10:33:26.014Z"
+    },
+    {
+      "rating": 3,
+      "timestamp": "2025-08-19T12:55:04.968Z"
+    },
+    {
+      "rating": 4,
+      "timestamp": "2025-08-19T12:58:27.064Z"
     }
   ]
 }

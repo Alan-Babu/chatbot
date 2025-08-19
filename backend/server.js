@@ -81,9 +81,9 @@ app.post('/api/chat', async (req, res) => {
         if (!req.body.query) {
             return res.status(400).json({ error: 'Missing query parameter' });
         }
-        const {query,k} = req.body;
+        const {query,k,session_id} = req.body;
         const topK = k ?? 3;
-        const response = await http.post('/chat', { query, k: topK }, { responseType: 'stream' });
+        const response = await http.post('/chat', { query, k: topK,session_id }, { responseType: 'stream' });
         res.setHeader('Content-Type', 'text/plain');
         response.data.pipe(res); // Pipe the response data directly to the client
     }catch (error) {
@@ -153,6 +153,35 @@ app.post('/api/feedback/session', (req, res) => {
 			}
 		});
 });
+
+// Fetch chat history
+app.get('/api/history/:sessionId', async (req, res) => {
+  try {
+    const response = await http.get(`/history/${encodeURIComponent(req.params.sessionId)}`);
+    res.json(response.data);
+  } catch (error) {
+	const status = error?.response?.status || 500;
+	const detail = error?.response?.data || error?.message || 'Internal Server Error';
+    console.error('Error in /api/history:', detail);
+    res.status(status).json({ error: 'Upstream history error',detail });
+  }
+});
+
+// Fuzzy search
+app.get('/api/search', async (req, res) => {
+  try {
+    const { q, limit } = req.query;
+	if(!q) return res.status(400).json({ error: 'Missing query parameter q' });
+    const response = await http.get('/search', { params: { q, limit } });
+    res.json(response.data);
+  } catch (error) {
+	const status = error?.response?.status || 500;
+	const detail = error?.response?.data || error?.message || 'Internal Server Error';
+    console.error('Error in /api/search:', detail);
+    res.status(status).json({ error: 'Upstream search error' ,detail});
+  }
+});
+
 
 app.post('/api/suggestions', async (req, res) => {
   try {

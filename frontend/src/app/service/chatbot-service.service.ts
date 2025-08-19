@@ -36,6 +36,17 @@ export class ChatbotServiceService {
         done = isDone;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
+
+          const match = chunk.match(/\[Message ID: (\d+)\]/);
+          if (match) {
+            const messageId = parseInt(match[1], 10);
+
+            if(onChunk){
+              onChunk(`Message ID: ${messageId}`); // ✅ callback to update UI with message ID
+            }
+            continue; // Skip the message ID line in the output) 
+          }
+
           if (chunk.toLowerCase().includes("error")) {
             if (onError) {
               onError("something went wrong, please try again later");
@@ -73,6 +84,28 @@ export class ChatbotServiceService {
   getMenuOptions(): Observable<string[]> {
     return this.http.get<string[]>(`${this.baseUrl}/menu`);
   }
+
+  // Get chat history for a session
+getHistory(sessionId: string): Observable<any[]> {
+  return this.http.get<any[]>(`${this.baseUrl}/history/${sessionId}`);
+}
+
+getSessionId(): string {
+  return this.getOrCreateSessionId();
+}
+
+// Perform fuzzy search
+search(query: string, limit: number = 5): Observable<any[]> {
+  return this.http.get<any[]>(`${this.baseUrl}/search`, { params: { q: query, limit } });
+}
+
+rebuildIndex(): Observable<any> {
+  return this.http.post(`${this.baseUrl}/ingest`, {});
+}
+
+getHealth(): Observable<any> {
+  return this.http.get(`${this.baseUrl}/health`);
+}
 
   private getOrCreateSessionId(): string {
     const key = 'chatbot_session_id';
