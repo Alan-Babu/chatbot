@@ -3,19 +3,78 @@ const axios = require('axios');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-const feedbackFile = path.join(__dirname, 'feedback.json');
+require('dotenv').config();
 
-const cors = require('cors');   
+const feedbackFile = path.join(__dirname, 'feedback.json');
+const cors = require('cors');
+
+const PORT = process.env.PORT || 3000;
+const FRONTEND_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:4200';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:8000';
 
 const corsOptions = {
-    origin: 'http://localhost:4200', // Adjust this to your frontend URL
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-}
+	origin: FRONTEND_ORIGIN,
+	methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+};
+
 const app = express();
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-const base_url = 'http://localhost:8000';
+// Shared axios client with sane defaults
+const http = axios.create({
+	baseURL: BASE_URL,
+	timeout: 30000,
+});
+
+// Simple async feedback store with serialized writes
+class FeedbackStore {
+	constructor(filePath) {
+		this.filePath = filePath;
+		this.queue = Promise.resolve();
+	}
+
+	_readSafe() {
+		try {
+			if (!fs.existsSync(this.filePath)) {
+				return { messages: [], sessions: [] };
+			}
+			const data = fs.readFileSync(this.filePath);
+			return JSON.parse(data);
+		} catch (_) {
+			return { messages: [], sessions: [] };
+		}
+	}
+
+	_writeSafe(data) {
+		return fs.promises
+			.writeFile(this.filePath, JSON.stringify(data, null, 2))
+			.catch(() => void 0);
+	}
+
+	withLock(fn) {
+		this.queue = this.queue.then(() => fn()).catch(() => void 0);
+		return this.queue;
+	}
+
+	addMessageFeedback(messageId, feedback) {
+		return this.withLock(async () => {
+			const data = this._readSafe();
+			data.messages.push({ messageId, feedback, timestamp: new Date() });
+			await this._writeSafe(data);
+		});
+	}
+
+	addSessionFeedback(rating) {
+		return this.withLock(async () => {
+			const data = this._readSafe();
+			data.sessions.push({ rating, timestamp: new Date() });
+			await this._writeSafe(data);
+		});
+	}
+}
+
+const feedbackStore = new FeedbackStore(feedbackFile);
 
 app.post('/api/chat', async (req, res) => {
     try{
@@ -24,22 +83,20 @@ app.post('/api/chat', async (req, res) => {
         }
         const {query,k} = req.body;
         const topK = k ?? 3;
-        const response = await axios.post(`${base_url}/chat`, {
-            query,
-            k: topK
-        },
-        {responseType: 'stream'}); // Use stream to handle large responses
+        const response = await http.post('/chat', { query, k: topK }, { responseType: 'stream' });
         res.setHeader('Content-Type', 'text/plain');
         response.data.pipe(res); // Pipe the response data directly to the client
     }catch (error) {
-        console.error('Error in /chat:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        const status = error?.response?.status || 500;
+        const detail = error?.response?.data || error?.message || 'Internal Server Error';
+        console.error('Error in /chat:', detail);
+        res.status(status).json({ error: 'Upstream chat error', detail });
     }
 });
 
 app.post('/api/ingest', async (req, res) => {
     try {
-        const response = await axios.post(`${base_url}/ingest`);
+        const response = await http.post('/ingest');
         res.json(response.data);
     }catch (error) {
         console.error('Error in /api/ingest:', error);
@@ -49,7 +106,7 @@ app.post('/api/ingest', async (req, res) => {
 
 app.get('/api/menu', async (req, res) => {
     try{
-        const response = await axios.get(`${base_url}/menu`);
+        const response = await http.get('/menu');
         res.json(response.data);
     }catch (error) {
         console.error('Error in /api/menu:', error);
@@ -57,29 +114,24 @@ app.get('/api/menu', async (req, res) => {
     }
 });
 
-function readFeedback() {
-  if (!fs.existsSync(feedbackFile)) {
-    return { messages: [], sessions: [] };
-  }
-  const data = fs.readFileSync(feedbackFile);
-  return JSON.parse(data);
-}
-
-function writeFeedback(data) {
-  fs.writeFileSync(feedbackFile, JSON.stringify(data, null, 2));
-}
-
 app.post('/api/feedback/message', (req, res) => {
   const { messageId, feedback } = req.body;
   if (!messageId || !feedback) {
     return res.status(400).send({ error: 'Missing messageId or feedback' });
   }
 
-  const data = readFeedback();
-  data.messages.push({ messageId, feedback, timestamp: new Date() });
-  writeFeedback(data);
-
-  res.send({ success: true });
+	// Persist locally for redundancy and forward to FastAPI for analysis
+	feedbackStore
+		.addMessageFeedback(messageId, feedback)
+		.catch(() => void 0)
+		.finally(async () => {
+			try {
+				const resp = await http.post('/feedback/message', { messageId, feedback });
+				res.send(resp.data ?? { success: true });
+			} catch {
+				res.send({ success: true });
+			}
+		});
 });
 
 // Save end-of-session feedback
@@ -89,13 +141,36 @@ app.post('/api/feedback/session', (req, res) => {
     return res.status(400).send({ error: 'Invalid rating' });
   }
 
-  const data = readFeedback();
-  data.sessions.push({ rating, timestamp: new Date() });
-  writeFeedback(data);
-
-  res.send({ success: true });
+	feedbackStore
+		.addSessionFeedback(rating)
+		.catch(() => void 0)
+		.finally(async () => {
+			try {
+				const resp = await http.post('/feedback/session', { rating });
+				res.send(resp.data ?? { success: true });
+			} catch {
+				res.send({ success: true });
+			}
+		});
 });
 
-app.listen(3000, () => {
-    console.log('Server is running on http://localhost:3000');
+app.post('/api/suggestions', async (req, res) => {
+  try {
+    const response = await http.post('/suggestions', req.body);
+    res.json(response.data);
+  } catch (error) {
+    const status = error?.response?.status || 500;
+    const detail = error?.response?.data || error?.message || 'Internal Server Error';
+    console.error('Error in /api/suggestions:', detail);
+    res.status(status).json({ error: 'Upstream suggestions error', detail });
+  }
+});
+
+
+app.get('/api/health', (_req, res) => {
+	res.json({ status: 'ok', upstream: BASE_URL, time: new Date().toISOString() });
+});
+
+app.listen(PORT, () => {
+	console.log(`Server is running on http://localhost:${PORT} (upstream: ${BASE_URL})`);
 });

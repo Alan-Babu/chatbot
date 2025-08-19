@@ -1,12 +1,13 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClientModule } from '@angular/common/http';
 import { ChatbotServiceService } from '../service/chatbot-service.service';
 
 @Component({
   selector: 'app-chatbot',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HttpClientModule],
   templateUrl: './chatbot.component.html',
   styleUrl: './chatbot.component.scss'
 })
@@ -14,7 +15,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef;
 
-  messages: any[] = [
+  messages: ChatMessage[] = [
     {
       id: 1,
       text: 'Hello! I\'m your AI assistant. How can I help you today?',
@@ -23,6 +24,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     }
   ];
   menuItems: string[] = [];
+  suggestions: string[] = [];
 
   newMessage = '';
   isTyping = false;
@@ -69,7 +71,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       this.isTyping = true;
 
       // Create bot message placeholder with isComplete: false
-      let botMessage = { 
+      let botMessage: ChatMessage = { 
         id: this.messages.length + 1, 
         text: '', 
         sender: 'bot', 
@@ -92,11 +94,27 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       this.messages = [...this.messages];
 
       this.isTyping = false;
+
+      // Fetch suggestions for next steps based on the full bot message
+      try {
+        const latest = botMessage.text;
+        this.chatbotService.getSuggestions(latest).subscribe({
+          next: (res) => this.suggestions = res?.suggestions ?? [],
+          error: () => this.suggestions = []
+        });
+      } catch {
+        this.suggestions = [];
+      }
     }
   }
 
   onMenuClick(item: string) {
     this.newMessage = item;
+    this.sendMessage();
+  }
+
+  useSuggestion(s: string) {
+    this.newMessage = s;
     this.sendMessage();
   }
 
@@ -110,13 +128,13 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     });
   }
 
-  getMessageClass(message: any): string {
+  getMessageClass(message: ChatMessage): string {
     return message.sender === 'user'
       ? 'bg-blue-600 text-white ml-auto'
       : 'bg-gray-100 text-gray-900';
   }
 
-  giveFeedback(message: any, feedback: 'up' | 'down') {
+  giveFeedback(message: ChatMessage, feedback: 'up' | 'down') {
     this.chatbotService.sendMessageFeedback(message.id, feedback).subscribe({
       next: () => console.log(`Feedback saved for message ${message.id}`),
       error: (err) => console.error("Feedback error:", err)
@@ -139,9 +157,12 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       error: (err) => console.error("Session feedback error:", err)
     });
   }
-  
+  showMainMenu() {
+    this.suggestions = [];  
+  }
 
-  getMessageAlignment(message: any): string {
+
+  getMessageAlignment(message: ChatMessage): string {
     return message.sender === 'user' ? 'justify-end' : 'justify-start';
   }
 
@@ -161,4 +182,14 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     this.showRatingPopup = false;
     this.chatEnded = false;
   }
+}
+
+
+type SenderRole = 'user' | 'bot';
+interface ChatMessage {
+  id: number;
+  text: string;
+  sender: SenderRole;
+  timestamp: Date;
+  isComplete?: boolean;
 }
