@@ -80,7 +80,7 @@
   </div>
 
   <div class="p-3 border-t border-gray-200">
-    <div *ngIf="!suggestions.length && !isTyping" class="flex flex-wrap gap-2 mb-3">
+    <div *ngIf="!suggestions.length && !isTyping && !chatEnded" class="flex flex-wrap gap-2 mb-3">
       <button *ngFor="let items of menuItems" 
               (click)="onMenuClick(items)"
               class="px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded-full border border-blue-200 hover:bg-blue-100 transition-colors">
@@ -88,7 +88,7 @@
       
       </button>
     </div>
-    <div *ngIf="suggestions.length && !isTyping" class="mt-2">
+    <div *ngIf="suggestions.length && !isTyping && !chatEnded" class="mt-2">
       <div class="text-xs text-gray-600 mb-1">Next steps:</div>
       <div class="flex flex-wrap gap-2">
         <button *ngFor="let s of suggestions" (click)="useSuggestion(s)"

@@ -32,7 +32,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
   selectedRating = 0;
   feedbackSubmitted = false;
   showRatingPopup = false;
-  sessionId = "";
+  sessionId: string|null = null ;
 
   searchQuery = '';
   searchResults: any[] = [];
@@ -43,12 +43,15 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
   constructor(private chatbotService: ChatbotServiceService) {}
 
   ngOnInit() {
+
+      this.sessionId = this.chatbotService.getSessionId();
+
       this.chatbotService.getMenuOptions().subscribe({
         next: (items) => this.menuItems = items,
         error: (err) => console.error("Menu fetch error:", err)
       });
 
-      this.sessionId = this.chatbotService.getSessionId();
+      
 
       this.chatbotService.getHistory(this.sessionId).subscribe({
       next: (history) => {
@@ -215,6 +218,8 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
   endChat() {
     console.log("Ending chat session...");
     this.showRatingPopup = true;
+    this.chatbotService.endSession();
+    this.sessionId = null;
   }
 
   submitRating(rating: number) {
@@ -224,6 +229,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
         this.showRatingPopup = false;
         this.addBotMessage("🙏 Thank you for your feedback!");
         this.chatEnded = true; // Disable input and buttons
+        this.suggestions = []; // Clear suggestions
       },
       error: (err) => console.error("Session feedback error:", err)
     });
@@ -252,6 +258,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     this.feedbackSubmitted = false;
     this.showRatingPopup = false;
     this.chatEnded = false;
+    this.sessionId = this.chatbotService.getSessionId();
   }
 
   onSearch() {

@@ -8,6 +8,7 @@ export class ChatbotServiceService {
 
   constructor(private http: HttpClient) { }
   baseUrl = (window as any)?.__CHATBOT_API__ ?? 'http://localhost:3000/api';
+  private sessionKey = 'chatSessionId';
 
  /* sendMessage(message: string): Observable<any> {
     return this.http.post(`${this.baseUrl}/chat`, { "query": message, "k": 3 });
@@ -68,6 +69,10 @@ export class ChatbotServiceService {
     }
   }
 
+  endSession(): void {
+    localStorage.removeItem(this.sessionKey);
+  }
+
   getSuggestions(latestBotText: string): Observable<{ suggestions: string[] }> {
     return this.http.post<{ suggestions: string[] }>(`${this.baseUrl}/suggestions`, { text: latestBotText });
   }
@@ -86,26 +91,31 @@ export class ChatbotServiceService {
   }
 
   // Get chat history for a session
-getHistory(sessionId: string): Observable<any[]> {
-  return this.http.get<any[]>(`${this.baseUrl}/history/${sessionId}`);
-}
+  getHistory(sessionId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/history/${sessionId}`);
+  }
 
-getSessionId(): string {
-  return this.getOrCreateSessionId();
-}
+  getSessionId(): string {
+    let sessionId = localStorage.getItem(this.sessionKey);
+    if (!sessionId) {
+      sessionId = 'sess_' + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem(this.sessionKey, sessionId);
+    }
+    return sessionId;
+  }
 
-// Perform fuzzy search
-search(query: string, limit: number = 5): Observable<any[]> {
-  return this.http.get<any[]>(`${this.baseUrl}/search`, { params: { q: query, limit } });
-}
+  // Perform fuzzy search
+  search(query: string, limit: number = 5): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/search`, { params: { q: query, limit } });
+  }
 
-rebuildIndex(): Observable<any> {
-  return this.http.post(`${this.baseUrl}/ingest`, {});
-}
+  rebuildIndex(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/ingest`, {});
+  }
 
-getHealth(): Observable<any> {
-  return this.http.get(`${this.baseUrl}/health`);
-}
+  getHealth(): Observable<any> {
+    return this.http.get(`${this.baseUrl}/health`);
+  }
 
   private getOrCreateSessionId(): string {
     const key = 'chatbot_session_id';
