@@ -105,49 +105,75 @@
 
   <!-- Input Area -->
   <div class="p-4 border-t border-gray-200 relative">
-  <!-- Show input area only if chat is not ended -->
-  <form *ngIf="!chatEnded" (ngSubmit)="sendMessage()" class="flex space-x-2 relative">
-    <input 
-      type="text" 
-      [(ngModel)]="newMessage" 
-      name="newMessage"
-      placeholder="Ask about information on EDAS..."
-      class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-      [disabled]="isTyping"
-      (input)="onInputChange()"
-      (keydown.arrowDown)="highlightSuggestion(1)"
-      (keydown.arrowUp)="highlightSuggestion(-1)"
-      (keydown.enter)="useHighlightedSuggestion($event)"
-      autocomplete="off"
-    />
+    <!-- Show input area only if chat is not ended -->
+    <form *ngIf="!chatEnded" (ngSubmit)="sendMessage()" class="flex space-x-2 relative">
+      <input 
+        type="text" 
+        [(ngModel)]="newMessage" 
+        name="newMessage"
+        placeholder="Ask about information on EDAS..."
+        class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        [disabled]="isTyping"
+        (input)="onInputChange()"
+        (keydown.arrowDown)="highlightSuggestion(1)"
+        (keydown.arrowUp)="highlightSuggestion(-1)"
+        (keydown.enter)="useHighlightedSuggestion($event)"
+        autocomplete="off"
+      />
 
-    <button 
-      type="submit" 
-      [disabled]="!newMessage.trim() || isTyping"
-      class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-      </svg>
-      <span>Send</span>
-    </button>
+      <button 
+        type="submit" 
+        [disabled]="!newMessage.trim() || isTyping"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+        </svg>
+        <span>Send</span>
+      </button>
 
-    <button 
-      (click)="endChat()"
-      type="button"
-      class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-      End Chat
-    </button>
-  </form>
+      <button 
+        (click)="endChat()"
+        type="button"
+        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+        End Chat
+      </button>
+    </form>
 
-  <!-- Autocomplete Dropdown -->
-  <div *ngIf="autocompleteOptions.length && !chatEnded" 
-       class="absolute bg-white border border-gray-200 rounded-lg shadow-md mt-1 w-full max-h-40 overflow-y-auto z-10">
-    <div *ngFor="let option of autocompleteOptions; let i = index"
-         (click)="useSuggestion(option)"
-         class="px-3 py-2 cursor-pointer hover:bg-gray-100 text-sm"
-         [class.bg-blue-100]="i === highlightedIndex">
-      {{ option }}
+    <div *ngIf="chatEnded" class="flex justify-center mt-4">
+      <button (click)="resetChat()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+        Start Chat
+      </button>
+    </div>
+
+    <div *ngIf="showRatingPopup" class="p-4 border-t border-gray-200 flex flex-col items-center space-y-2">
+      <p class="text-sm text-gray-700">Please rate your chat session:</p>
+      <div class="flex space-x-1">
+        <ng-container *ngFor="let star of [1,2,3,4,5]">
+          <button 
+            (click)="selectedRating = star" 
+            class="text-3xl focus:outline-none"
+            [ngClass]="star <= selectedRating ? 'text-yellow-400' : 'text-gray-300'">
+            ★
+          </button>
+        </ng-container>
+      </div>
+      <button 
+        (click)="submitRating(selectedRating)" 
+        [disabled]="selectedRating === 0"
+        class="mt-2 px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500">
+        Submit
+      </button>
+    </div>
+
+    <!-- Autocomplete Dropdown -->
+    <div *ngIf="autocompleteOptions.length && !chatEnded" 
+        class="absolute bg-white border border-gray-200 rounded-lg shadow-md mt-1 w-full max-h-40 overflow-y-auto z-10">
+      <div *ngFor="let option of autocompleteOptions; let i = index"
+          (click)="useSuggestion(option)"
+          class="px-3 py-2 cursor-pointer hover:bg-gray-100 text-sm"
+          [class.bg-blue-100]="i === highlightedIndex">
+        {{ option }}
+      </div>
     </div>
   </div>
-</div>
 </div>

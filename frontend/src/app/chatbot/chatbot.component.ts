@@ -213,6 +213,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
   // End chat → star rating
   endChat() {
+    console.log("Ending chat session...");
     this.showRatingPopup = true;
   }
 
