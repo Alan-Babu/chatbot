@@ -36,6 +36,9 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
   searchQuery = '';
   searchResults: any[] = [];
+  autocompleteOptions: string[] = [];
+  highlightedIndex: number = -1;
+
 
   constructor(private chatbotService: ChatbotServiceService) {}
 
@@ -102,7 +105,7 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
       // Stream response from backend
       await this.chatbotService.sendMessage(userMessage, (chunk: string) => {
-        if(chunk.startsWith('[[Message ID:')) {
+        if(chunk.startsWith('Message ID:')) {
           const match = chunk.match(/Message ID: (\d+)/);
           if (match) {
             botMessage.id = parseInt(match[1], 10);
@@ -135,15 +138,53 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
       }
     }
   }
-  
 
-  onMenuClick(item: string) {
-    this.newMessage = item;
+  
+  onInputChange() {
+    const query = this.newMessage.trim().toLowerCase();
+    if (!query) {
+      this.autocompleteOptions = [];
+      return;
+    }
+
+    // Option 1: filter locally from menuItems
+    this.autocompleteOptions = this.menuItems.filter(item =>
+      item.toLowerCase().includes(query)
+    ).slice(0, 5);
+
+    // Option 2 (better): call backend /suggestions
+    this.chatbotService.getSuggestions(query).subscribe({
+      next: (res) => {
+        this.autocompleteOptions = res?.suggestions ?? [];
+      },
+      error: () => this.autocompleteOptions = []
+    });
+  }
+
+  highlightSuggestion(direction: number) {
+    if (!this.autocompleteOptions.length) return;
+    this.highlightedIndex =
+      (this.highlightedIndex + direction + this.autocompleteOptions.length) %
+      this.autocompleteOptions.length;
+  }
+
+  useHighlightedSuggestion(event: Event) {
+    if (this.highlightedIndex >= 0 && this.highlightedIndex < this.autocompleteOptions.length) {
+      event.preventDefault();
+      this.useSuggestion(this.autocompleteOptions[this.highlightedIndex]);
+    }
+  }
+
+  useSuggestion(suggestion: string) {
+    this.newMessage = suggestion;
+    this.autocompleteOptions = [];
+    this.highlightedIndex = -1;
     this.sendMessage();
   }
 
-  useSuggestion(s: string) {
-    this.newMessage = s;
+
+  onMenuClick(item: string) {
+    this.newMessage = item;
     this.sendMessage();
   }
 
