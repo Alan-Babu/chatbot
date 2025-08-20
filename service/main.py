@@ -27,8 +27,26 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 print("DATABASE_URL =", os.getenv("DATABASE_URL"))
 
 from db.db import init_db, SessionLocal, CacheEntry, ChatMessage, MessageFeedback, SessionFeedback
-  # Assuming db.py has the init_db function
+from fastapi.middleware.cors import CORSMiddleware
+from routers.auth import router as auth_router
+from routers.payments import router as payments_router
+from routers.dues import router as dues_router
+
 app = FastAPI()
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include new routers
+app.include_router(auth_router, prefix="/auth", tags=["authentication"])
+app.include_router(payments_router, prefix="/payments", tags=["payments"])
+app.include_router(dues_router, prefix="/dues", tags=["dues"])
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
