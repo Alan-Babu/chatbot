@@ -43,7 +43,11 @@
       <div class="max-w-xs lg:max-w-md">
         <div class="px-4 py-2 rounded-lg shadow-sm" 
              [ngClass]="getMessageClass(message)">
+          @if(message.sender == 'bot'){
+            <markdown [data]="message.text"  class="prose prose-sm max-w-none"></markdown>
+          }@else{
           <p class="text-sm">{{ message.text }}</p>
+          }
           <p class="text-xs opacity-70 mt-1">
             {{ message.timestamp | date:'shortTime' }}
           </p>

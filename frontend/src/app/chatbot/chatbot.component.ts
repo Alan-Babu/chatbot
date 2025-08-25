@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { ChatbotServiceService } from '../service/chatbot-service.service';
+import { MarkdownModule } from 'ngx-markdown';
 
 @Component({
   selector: 'app-chatbot',
   standalone: true,
-  imports: [CommonModule, FormsModule, HttpClientModule],
+  imports: [CommonModule, FormsModule, HttpClientModule,MarkdownModule],
   templateUrl: './chatbot.component.html',
   styleUrl: './chatbot.component.scss'
 })
@@ -81,76 +82,76 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     } catch (err) {}
   }
 
-  async sendMessage() {
-    if (this.newMessage.trim() && !this.chatEnded) {
-      const userMessage = this.newMessage;
-      this.newMessage = '';
+async sendMessage() {
+  if (this.newMessage.trim() && !this.chatEnded) {
+    const userMessage = this.newMessage;
+    this.newMessage = '';
 
-      // Push user message
-      this.messages.push({
-        id: this.messages.length + 1,
-        text: userMessage,
-        sender: 'user',
-        timestamp: new Date(),
-        isComplete: true
-      });
+    // Push user message
+    this.messages.push({
+      id: this.messages.length + 1,
+      text: userMessage,
+      sender: 'user',
+      timestamp: new Date(),
+      isComplete: true
+    });
 
-      this.isTyping = true;
+    this.isTyping = true;
 
-      // Create placeholder bot message
-      let botMessage: ChatMessage = {
-        id: this.messages.length + 1,
-        text: '',
-        sender: 'bot',
-        timestamp: new Date(),
-        isComplete: false
-      };
-      this.messages.push(botMessage);
+    // Create placeholder bot message
+    let botMessage: ChatMessage = {
+      id: this.messages.length + 1,
+      text: '',
+      sender: 'bot',
+      timestamp: new Date(),
+      isComplete: false
+    };
+    this.messages.push(botMessage);
 
-      try {
-        await this.chatbotService.sendMessage(
-          userMessage,
-          (chunk: string) => {
-            if (chunk.startsWith('Message ID:')) {
-              const match = chunk.match(/Message ID: (\d+)/);
-              if (match) {
-                botMessage.id = parseInt(match[1], 10);
-                // Force re-render to show updated ID
-                this.messages = [...this.messages];
-              }
-              return;
-            }
-
-            if (chunk) {
-              // Append streamed text
-              botMessage.text = (botMessage.text + chunk).replace(/\s+/g, ' ');
-              botMessage.timestamp = new Date();
-
-              // 🔥 Force Angular to detect change
+    try {
+      await this.chatbotService.sendMessage(
+        userMessage,
+        (chunk: string) => {
+          if (chunk.startsWith('Message ID:')) {
+            const match = chunk.match(/Message ID: (\d+)/);
+            if (match) {
+              botMessage.id = parseInt(match[1], 10);
+              // Force re-render to show updated ID
               this.messages = [...this.messages];
-              this.scrollToBottom();
             }
+            return;
           }
-        );
-      } finally {
-        // Mark complete once streaming ends
-        botMessage.isComplete = true;
-        this.isTyping = false;
-        this.messages = [...this.messages];
 
-        // Fetch suggestions
-        try {
-          const latest = botMessage.text;
-          this.chatbotService.getSuggestions(latest).subscribe({
-            next: (res) => this.suggestions = res?.suggestions ?? [],
-            error: () => this.suggestions = []
-          });
-        } catch {
-          this.suggestions = [];
+          if (chunk) {
+            // Append streamed text
+            botMessage.text = (botMessage.text + chunk).replace(/\s+/g, ' ');
+            botMessage.timestamp = new Date();
+
+            // 🔥 Force Angular to detect change
+            this.messages = [...this.messages];
+            this.scrollToBottom();
+          }
         }
+      );
+    } finally {
+      // Mark complete once streaming ends
+      botMessage.isComplete = true;
+      this.isTyping = false;
+      this.messages = [...this.messages];
+
+      // Fetch suggestions
+      try {
+        const latest = botMessage.text;
+        this.chatbotService.getSuggestions(latest).subscribe({
+          next: (res) => this.suggestions = res?.suggestions ?? [],
+          error: () => this.suggestions = []
+        });
+      } catch {
+        this.suggestions = [];
       }
     }
   }
+}
 
 
   
