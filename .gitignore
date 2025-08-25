@@ -15,4 +15,6 @@ package-lock.json
 # Ignore build directories
 build/
 feedback.json
+*.zip
+
 

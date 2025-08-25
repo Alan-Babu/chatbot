@@ -91,56 +91,67 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
         id: this.messages.length + 1,
         text: userMessage,
         sender: 'user',
-        timestamp: new Date()
+        timestamp: new Date(),
+        isComplete: true
       });
 
       this.isTyping = true;
 
-      // Create bot message placeholder with isComplete: false
-      let botMessage: ChatMessage = { 
-        id: this.messages.length + 1, 
-        text: '', 
-        sender: 'bot', 
+      // Create placeholder bot message
+      let botMessage: ChatMessage = {
+        id: this.messages.length + 1,
+        text: '',
+        sender: 'bot',
         timestamp: new Date(),
         isComplete: false
       };
       this.messages.push(botMessage);
 
-      // Stream response from backend
-      await this.chatbotService.sendMessage(userMessage, (chunk: string) => {
-        if(chunk.startsWith('Message ID:')) {
-          const match = chunk.match(/Message ID: (\d+)/);
-          if (match) {
-            botMessage.id = parseInt(match[1], 10);
-          }
-          return;
-
-        }
-        if (chunk.trim()) {
-          botMessage.text += chunk;
-          // 🔥 Force UI refresh (Angular doesn’t detect += mutations well)
-          this.messages = [...this.messages];
-        }
-      });
-
-      // Mark message as complete after streaming
-      botMessage.isComplete = true;
-      this.messages = [...this.messages];
-
-      this.isTyping = false;
-
-      // Fetch suggestions for next steps based on the full bot message
       try {
-        const latest = botMessage.text;
-        this.chatbotService.getSuggestions(latest).subscribe({
-          next: (res) => this.suggestions = res?.suggestions ?? [],
-          error: () => this.suggestions = []
-        });
-      } catch {
-        this.suggestions = [];
+        await this.chatbotService.sendMessage(
+          userMessage,
+          (chunk: string) => {
+            if (chunk.startsWith('Message ID:')) {
+              const match = chunk.match(/Message ID: (\d+)/);
+              if (match) {
+                botMessage.id = parseInt(match[1], 10);
+                // Force re-render to show updated ID
+                this.messages = [...this.messages];
+              }
+              return;
+            }
+
+            if (chunk) {
+              // Append streamed text
+              botMessage.text = (botMessage.text + chunk).replace(/\s+/g, ' ');
+              botMessage.timestamp = new Date();
+
+              // 🔥 Force Angular to detect change
+              this.messages = [...this.messages];
+              this.scrollToBottom();
+            }
+          }
+        );
+      } finally {
+        // Mark complete once streaming ends
+        botMessage.isComplete = true;
+        this.isTyping = false;
+        this.messages = [...this.messages];
+
+        // Fetch suggestions
+        try {
+          const latest = botMessage.text;
+          this.chatbotService.getSuggestions(latest).subscribe({
+            next: (res) => this.suggestions = res?.suggestions ?? [],
+            error: () => this.suggestions = []
+          });
+        } catch {
+          this.suggestions = [];
+        }
       }
     }
   }
+
 
   
   onInputChange() {
